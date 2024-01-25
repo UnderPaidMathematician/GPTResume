@@ -1,4 +1,5 @@
 import os
+import time
 from docx import Document
 import pdfplumber
 import win32com.client as win32
@@ -6,19 +7,19 @@ import re
 
 
 class TextExtractor:
+    """Extracts text from all files in a directory with .doc, .docx, and pdf extensions.
+    Then cleans up the text. Currently, throws a value error if the file is not one of the expected formats."""
     def __init__(self, filepath):
         self.filepath = filepath
-        self.resume_text = self.extract_text()
-        self.resume_text = self.clean_text(self.resume_text)
+        self.extracted_text = self.extract_text()
+        self.cleaned_text = self.clean_text(self.extracted_text)
 
     def extract_text(self):
         """Extract text based on the format of the resume text."""
         if self.filepath.endswith('.docx'):
             return self.extract_text_from_docx()
         elif self.filepath.endswith('.doc'):
-            converted_docx_path = self.convert_doc_to_docx()
-            self.filepath = converted_docx_path  # Update the file path to the converted .docx file
-            return self.extract_text_from_docx()
+            return self.convert_doc_to_docx()
         elif self.filepath.endswith('.pdf'):
             return self.extract_text_from_pdf()
         else:
@@ -26,6 +27,8 @@ class TextExtractor:
 
     def extract_text_from_docx(self):
         """Extract text from docx."""
+        if not os.path.isfile(self.filepath):
+            raise FileNotFoundError(f"No file found at {self.filepath}")
         doc = Document(self.filepath)
         return "\n".join([para.text for para in doc.paragraphs])
 
@@ -38,25 +41,32 @@ class TextExtractor:
         return text
 
     def convert_doc_to_docx(self):
-        """Helper function for converting doc to docx format"""
-        # Check if the file exists
+        """Converts a .doc file to .docx format and returns the text."""
         if not os.path.exists(self.filepath):
             raise FileNotFoundError(f"The file {self.filepath} does not exist")
 
         word = win32.gencache.EnsureDispatch('Word.Application')
+        word.Visible = False  # Run Word in the background
+        doc = None
         try:
             doc = word.Documents.Open(self.filepath)
-            doc_path_new = self.filepath + 'x'
-            doc.SaveAs2(doc_path_new, FileFormat=16)  # FileFormat=16 for DOCX
-            doc.Close()
+            text = []
+            for para in doc.Paragraphs:
+                text.append(para.Range.Text.strip())
+            text = "\n".join(text)
         except Exception as e:
             print(f"Error occurred while converting .doc to .docx: {e}")
             raise
         finally:
+            if doc is not None:
+                doc.Close(False)  # Close the document without saving
             word.Quit()
-        return doc_path_new
+            # Next time will consider a more elegant approach. Currently, giving system time to close word document.
+            time.sleep(1)
+        return text
 
-    def clean_text(self, text):
+    @staticmethod
+    def clean_text(text):
         """Clean resume text."""
         # Normalize whitespace
         text = re.sub(r'\s+', ' ', text)
@@ -73,5 +83,5 @@ class TextExtractor:
         return text
 
     def get_text(self):
-        """Get resume text."""
-        return self.resume_text
+        """Get cleaned text."""
+        return self.cleaned_text
