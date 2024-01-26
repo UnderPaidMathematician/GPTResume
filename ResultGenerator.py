@@ -46,8 +46,4 @@ class ResultGenerator:
             # write the summary to file
             summary_file.write(resume.gpt_summary + "\n\n")
 
-            # Writes the resume vector with the first 20 similarity scores.
-            summary_file.write("Resume Vector:\n")
-            summary_file.write(str(resume.ada2_resume_vector[:21]))
-
         print(f"Processed resume: {resume_filename}")
